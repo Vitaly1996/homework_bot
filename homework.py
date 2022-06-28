@@ -1,20 +1,18 @@
+import enum
+import logging
 import os
 import sys
-import time
-import enum
 import threading
-
-import logging
-import telegram
-import requests
-
-from dotenv import load_dotenv
+import time
 from http import HTTPStatus
 from typing import Dict, List, Union
 
-from exceptions import (
-    APIResponseError, APIStatusCodeError, ExchangeError, TelegramError
-)
+import requests
+import telegram
+from dotenv import load_dotenv
+
+from exceptions import (APIResponseError, APIStatusCodeError, ExchangeError,
+                        TelegramError)
 
 
 class State(enum.Enum):
@@ -37,7 +35,7 @@ TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 COUNT_PREVIOUS_WEEK = 21686400
-RETRY_TIME = 6
+RETRY_TIME = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
@@ -82,8 +80,9 @@ def get_api_answer(current_timestamp: int):
     return response
 
 
-def check_response(response: Dict[str, List[Dict[str, Union[int, str]]]]) \
-        -> Dict[str, Union[int, str]]:
+def check_response(
+        response: Dict[str, List[Dict[str, Union[int, str]]]]
+) -> List[Dict[str, Union[int, str]]]:
     """Проверка ответа api на корректность."""
     logging.info('Проверка ответа от API начата')
 
@@ -94,7 +93,7 @@ def check_response(response: Dict[str, List[Dict[str, Union[int, str]]]]) \
     if not isinstance(homework[0], dict):
         raise TypeError('Ответ не является словарём.')
 
-    if homework is None:
+    if not homework:
         raise APIResponseError(
             'В ответе API отсутствует необходимый ключ "homeworks, '
             f'response = {response}'
@@ -113,8 +112,16 @@ def check_response(response: Dict[str, List[Dict[str, Union[int, str]]]]) \
 def parse_status(homework: dict) -> str:
     """Извлечение статуса домашней работы."""
     logging.info('Извлекаем статус домашней работы')
-    homework_status = homework['status']
-    homework_name = homework['homework_name']
+    homework_status = homework.get('status')
+    homework_name = homework.get('homework_name')
+    if not homework_status:
+        raise KeyError(
+            'В ответе API отсутствует необходимый ключ "homework_status"'
+        )
+    if not homework_name:
+        raise KeyError(
+            'В ответе API отсутствует необходимые ключи "homework_name"'
+        )
     try:
         verdict = HOMEWORK_STATUSES[homework_status]
     except KeyError:
@@ -162,15 +169,18 @@ def main():
             result_check = check_response(response)
             homework = result_check[0]
             current_report = parse_status(homework)
-            if current_report == prev_report:
-                logging.debug(
-                    'Статус домашней работы не обновился.'
-                    'Придется ещё немного подождать.'
-                )
+
         except Exception as exc:
             error_message = f'Сбой в работе программы: {exc}'
             current_report = error_message
             logging.exception(error_message)
+
+        else:
+            if current_report == prev_report:
+                logging.info(
+                    'Статус домашней работы не обновился.'
+                    'Придется ещё немного подождать.'
+                )
 
         try:
             if current_report != prev_report:
@@ -181,7 +191,8 @@ def main():
             error_message = f'Сбой в работе программы: {exc}'
             logging.exception(error_message)
 
-        time.sleep(RETRY_TIME)
+        finally:
+            time.sleep(RETRY_TIME)
 
 
 def repl():
@@ -206,7 +217,7 @@ if __name__ == '__main__':
         level=logging.INFO,
         format=log_format,
         handlers=[
-            logging.FileHandler(log_file),
+            logging.FileHandler(log_file, 'w'),
             logging.StreamHandler(log_stream)
         ],
     )
