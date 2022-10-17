@@ -25,7 +25,7 @@ python3 -m pip install --upgrade pip
 ```sh
 python pip install -r requirements.txt
 ```
-- в корневой директории проекта создать файл .env и записать в него следующие переменные окружения:
+- в корневой директории проекта создать файл .env и записать в него следующие переменные окружения:    
 PRACTICUM_TOKEN = <Ваш токен практикума>    
 TELEGRAM_TOKEN = <Ваш токен telegram>     
 TELEGRAM_CHAT_ID = <Ваш chat_id telegram>    
